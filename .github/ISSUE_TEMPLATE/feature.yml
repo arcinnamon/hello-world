@@ -1,0 +1,27 @@
+name: Agent-ready feature
+about: Feature request with clear acceptance criteria
+labels: [feature]
+body:
+  - type: textarea
+    id: spec
+    attributes:
+      label: Specification
+      description: Paste the specification or link a committed specs/*.md file.
+      placeholder: "Goal, scope, user experience, data changes..."
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: "- [ ] The user can ..."
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints / out of scope
+  - type: textarea
+    id: validation
+    attributes:
+      label: Testing notes

@@ -1,0 +1,9 @@
+* { box-sizing: border-box; }
+:root { color-scheme: light; font-family: system-ui, sans-serif; background: #f7f8fa; color: #17202a; }
+body { margin: 0; }
+main { max-width: 760px; padding: 80px 24px; margin: auto; }
+h1 { font-size: clamp(2rem, 6vw, 3.4rem); letter-spacing: -0.04em; }
+p { line-height: 1.65; }
+.card { background: white; border: 1px solid #e0e4e8; border-radius: 16px; padding: 26px; }
+code { background: #eef1f5; padding: 3px 6px; border-radius: 4px; }
+a { color: #075cac; }

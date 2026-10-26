@@ -1,0 +1,3 @@
+-- Initial schema intentionally empty.
+-- All future schema changes must use reviewed migrations.
+-- For user-owned tables: enable RLS and define appropriate policies before exposure.
