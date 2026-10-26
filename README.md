@@ -6,6 +6,8 @@ Agent-ready **Next.js App Router + TypeScript + Supabase + Vercel** template. It
 - Git, Node.js 22+, npm, a GitHub account, Vercel account, and Supabase account.
 - IDE with GitHub Copilot Chat / Agent Mode (optional for deployment setup).
 - Two distinct Supabase projects: staging and production.
+- For detailed resource names, dashboard steps, environment scopes, and release
+  safeguards, follow [the deployment setup runbook](docs/DEPLOYMENT_SETUP.md).
 
 ## 1. Start from the ZIP
 1. Extract into a folder named `webapp-starter` (or your project name).

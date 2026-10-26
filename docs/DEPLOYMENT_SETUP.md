@@ -1,0 +1,204 @@
+# Deployment setup runbook
+
+This runbook deploys this repository to GitHub-connected Vercel and keeps
+staging and production data in separate Supabase projects. Follow the steps in
+order. Do not put passwords, API keys, or tokens in Issues, pull requests, chat,
+or committed files.
+
+## Names to decide before creating resources
+
+This repository is `arcinnamon/hello-world`. Use these names as a starting
+point:
+
+| Service | Resource | Suggested name | Naming note |
+| --- | --- | --- | --- |
+| Supabase | Staging project | `hello-world-staging` | A descriptive project name. Record the Project URL and generated project reference shown by Supabase; do not derive either from this name. |
+| Supabase | Production project | `hello-world-production` | Separate project, database password, Project URL, and publishable key from staging. |
+| Vercel | Application project | `hello-world` | One Vercel project serves both Preview and Production. Choose a project name that is available in the Vercel team/account you select. If unavailable, add a short distinguishing suffix, such as `hello-world-arcinnamon`. |
+| GitHub | Repository | `arcinnamon/hello-world` | This repository already exists. Do not create a duplicate. |
+
+The Supabase names above distinguish environments; the project name is not the
+connection value. Supabase displays a project URL/reference for each project.
+Copy those values from the dashboard and keep a private staging/production
+mapping. Vercel's project-name field must be available in the selected Vercel
+team/account. Check availability in the dashboard at creation time.
+
+## 1. Verify the local repository
+
+From the repository root:
+
+```bash
+npm ci
+npm run check
+git status --short --branch
+```
+
+`npm run check` runs lint, TypeScript checks, tests, and a production build.
+Resolve failures before opening or merging a pull request. Never commit
+`.env.local`, database passwords, Supabase secret/service-role keys, or Vercel
+tokens.
+
+## 2. Push the repository to GitHub
+
+The repository already exists at
+[github.com/arcinnamon/hello-world](https://github.com/arcinnamon/hello-world).
+If GitHub CLI is installed, authenticate without putting a token in a command:
+
+```bash
+gh auth login --hostname github.com --git-protocol https --web
+gh auth status
+```
+
+Push the intended branch (for example, `main` for the existing initial
+repository commit, or a feature branch for a pull request):
+
+```bash
+git push -u origin BRANCH_NAME
+```
+
+If you are applying a local feature-branch change, push that feature branch and
+open a pull request to `main`; do not push feature work directly to `main`.
+
+## 3. Create the two Supabase projects
+
+Repeat these steps once for each project:
+
+1. Sign in at [Supabase Dashboard](https://supabase.com/dashboard).
+2. Select the organization that should own the project. Check its billing and
+   access settings before creating resources.
+3. Choose **New project**.
+4. Enter the project name from the table above:
+   - `hello-world-staging`
+   - `hello-world-production`
+5. Choose the same specific US region for both projects, preferably near the
+   app's users. The dashboard's region list may use specific city/region names;
+   choose the actual listed region, not just the general label "US".
+6. Create a strong, distinct database password for each project. Enter it
+   directly in Supabase and save it in a password manager. Do not send it to
+   an agent or place it in source control.
+7. Review the selected plan, billing, and resource settings, then create the
+   project and wait for provisioning to finish.
+8. Open the project's **Connect** panel or **Project Settings → API**. Record
+   the **Project URL** and **publishable key** in your password manager with
+   the correct environment label.
+9. Repeat for the other environment. Double-check that the staging and
+   production URLs/keys are not swapped.
+
+Use only the publishable key in browser-facing configuration. Never use a
+secret or service-role key in a `NEXT_PUBLIC_` variable.
+
+This starter's initial migration is intentionally empty. Do not apply
+migrations as part of this setup. Future schema changes must be reviewed and
+applied to staging first; production migrations require separate human
+approval.
+
+## 4. Import the GitHub repository into Vercel
+
+1. Sign in at [Vercel Dashboard](https://vercel.com/dashboard).
+2. Select the Vercel team/account that should own the project. Review its plan
+   and billing before creating resources.
+3. Choose **Add New → Project** and import
+   `arcinnamon/hello-world`. If the repository is not listed, check that the
+   GitHub account/integration has permission to access it.
+4. Set the project name to `hello-world`, if available in the selected
+   Vercel team/account. If it is unavailable, use a clear available name such
+   as `hello-world-arcinnamon`.
+5. Confirm the detected framework is **Next.js** and the production branch is
+   `main`.
+6. **Stop before confirming an initial deployment unless production deployment
+   has been explicitly approved.** Vercel documents that the first deployment
+   of a new project is a production deployment. Do not click **Deploy** to
+   proceed without that approval.
+
+After the project exists, configure its environment variables:
+
+1. Open **Project Settings → Environment Variables**.
+2. Add `NEXT_PUBLIC_SUPABASE_URL` and choose the correct environment scope:
+   - **Preview** and **Development**: staging Supabase Project URL.
+   - **Production**: production Supabase Project URL.
+3. Add `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` with the matching key scopes:
+   - **Preview** and **Development**: staging publishable key.
+   - **Production**: production publishable key.
+4. Save the variables. Inspect each scope before saving to ensure staging and
+   production values are not interchanged.
+5. Do not paste the values into a PR, Issue, chat, or terminal command. If the
+   app is run locally, use staging values in the gitignored `.env.local` file.
+
+Vercel's default environments include Preview and Production (and Local for
+development). A separate Vercel project is not required for staging. With Git
+integration, non-production branches and PRs can receive Preview deployments;
+the `main` production branch deploys to Production. Environment-variable
+changes may require a new deployment before they take effect.
+
+## 5. Require review and CI on GitHub
+
+1. Open the repository's **Settings → Branches** (or **Settings → Rules →
+   Rulesets**, depending on the GitHub UI).
+2. Add a rule/ruleset targeting the `main` branch.
+3. Require a pull request before merging. Require at least one approval if
+   available for the repository plan and organization.
+4. Require status checks to pass before merging. Select the CI job named
+   `verify`. If it is not offered yet, first run CI on a pull request, then
+   return to the rule and select it.
+5. Enable the options to block force pushes and direct pushes to `main`, where
+   available, and save the rule.
+
+The workflow in `.github/workflows/ci.yml` runs `npm ci` and `npm run check` on
+pull requests and pushes to `main`.
+
+## 6. Verify a Preview deployment
+
+After Vercel is connected and a feature branch is pushed or a pull request is
+opened:
+
+1. Confirm the PR's `verify` CI job passes.
+2. Wait for Vercel to report a Preview deployment and open its URL.
+3. Check that `/` loads and `/api/health` returns HTTP 200 with:
+
+   ```json
+   { "status": "ok", "service": "webapp-starter" }
+   ```
+
+4. In Vercel's deployment/project settings, confirm the Preview environment
+   uses the staging Supabase values. The health endpoint does not connect to
+   or verify a Supabase database.
+5. Review the code, checks, any migration, and Preview before approving the
+   pull request. Only a human should approve and merge.
+
+## 7. Exercise the Issue → Copilot → PR workflow
+
+1. Create an Issue using `.github/ISSUE_TEMPLATE/feature.yml`.
+2. Include a specific goal, acceptance criteria, constraints, and testing
+   notes. Link a `specs/*.md` file if the change needs a durable specification.
+3. Assign the Issue to GitHub Copilot coding agent if that feature is enabled
+   and authorized for the account/repository.
+4. Review the agent's pull request, including the diff, CI `verify` result,
+   migration (if any), and Vercel Preview.
+5. Request changes if needed. A human reviews and approves; merge only after
+   approval.
+6. Treat the merge to `main` as a production change. Confirm the production
+   deployment is authorized before merging if Vercel is set to deploy `main`
+   automatically.
+
+## 8. Production release gate
+
+Before the first production deployment, verify all of the following:
+
+- The production Supabase project is distinct from staging and its values are
+  scoped only to Vercel Production.
+- The PR and required CI checks passed and a human reviewed the Preview.
+- Any database change was reviewed and separately approved for production.
+- A human explicitly approved the production deployment.
+
+After the authorized deployment, open the production URL and verify `/` and
+`/api/health`. Do not report a production URL until a deployment has completed
+and its URL has been checked.
+
+## Official references
+
+- [Supabase projects and organizations](https://supabase.com/docs/guides/platform)
+- [Vercel projects](https://vercel.com/docs/projects)
+- [Vercel deployment environments](https://vercel.com/docs/deployments/environments)
+- [Vercel Git integration](https://vercel.com/docs/git)
+- [Vercel environment variables](https://vercel.com/docs/environment-variables)
+- [GitHub Copilot coding agent](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/cloud-agent)
