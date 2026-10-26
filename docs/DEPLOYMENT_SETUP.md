@@ -5,6 +5,66 @@ staging and production data in separate Supabase projects. Follow the steps in
 order. Do not put passwords, API keys, or tokens in Issues, pull requests, chat,
 or committed files.
 
+## Session checkpoint: October 26, 2026
+
+Pause point and suggested starting place for the next session:
+
+- The GitHub repository is `arcinnamon/hello-world`; its `main` branch has the
+  initial repository commits.
+- Local validation passed for the code and lockfile change:
+  `npm ci && npm run check`. The local production smoke test returned HTTP 200
+  for `/` and `/api/health`.
+- Commit `6e32b6b` (`chore: add reproducible dependency lock`) is already on
+  the remote feature branch `chore/bootstrap-lockfile`.
+- Commit `8b88117` (`docs: add explicit deployment setup runbook`) is local on
+  that branch but is not pushed yet.
+- At the last check, `README.md` had additional uncommitted edits. Review and
+  preserve them; do not stage them accidentally while pushing the runbook.
+- The user reports that creating `hello-world-staging` used the remaining
+  project slot on the Supabase Free plan (two-project limit). A separate
+  production Supabase project is not available under the current project
+  capacity. Check the account's current plan/options tomorrow; do not delete or
+  alter an existing Supabase project without confirming its owner, data, and
+  backups.
+- The user plans to set up GitHub Pro before trying the GitHub/Copilot
+  workflow. This is a user-reported prerequisite; confirm that the selected
+  plan enables the desired Copilot coding-agent capabilities before relying on
+  it.
+- Vercel is not connected. The initial Vercel deployment is a production
+  deployment, and production deployment has not been authorized.
+- No production Supabase project, production environment variables, migrations,
+  branch-protection rules, Vercel deployment, or production URL are verified.
+
+### Start here next session
+
+1. Set up GitHub Pro as planned, then check the account/repository's Copilot
+   coding-agent eligibility and permissions.
+2. Review the existing uncommitted `README.md` edits. Preserve them if they are
+   intentional; commit them separately only if desired.
+3. From the repository root, check the branch and changes:
+
+   ```bash
+   git status --short --branch
+   git log --oneline -3
+   ```
+
+4. Push the already-committed runbook without staging unrelated README edits:
+
+   ```bash
+   git push -u origin chore/bootstrap-lockfile
+   ```
+
+5. Open or update a pull request from `chore/bootstrap-lockfile` to `main`.
+   Review the diff and CI result before merging. Do not merge if it would start
+   an unauthorized production deployment.
+6. Continue with a non-production GitHub Issue → Copilot → PR → CI exercise.
+   Skip the Vercel preview part unless Vercel has been connected and its
+   first-production-deployment behavior has been addressed and explicitly
+   approved.
+7. Revisit production Supabase capacity separately. Keep staging and production
+   isolated as required by `docs/adr/0002-separate-supabase-environments.md`;
+   do not point both environments at the staging project as a workaround.
+
 ## Names to decide before creating resources
 
 This repository is `arcinnamon/hello-world`. Use these names as a starting
