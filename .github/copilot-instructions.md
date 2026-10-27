@@ -1,1 +1,1 @@
-Follow `AGENTS.md` and `ARCHITECTURE.md`. Read relevant accepted `docs/adr` decisions and the linked feature specification. Treat pull requests as the delivery mechanism. Never commit credentials or deploy production autonomously.
+Follow `AGENTS.md`, `ARCHITECTURE.md`, and `SOFTWARE_ENGINEERING_PRINCIPLES.md`. Read relevant accepted `docs/adr` decisions and the linked feature specification. Treat pull requests as the delivery mechanism. Never commit credentials or deploy production autonomously.
