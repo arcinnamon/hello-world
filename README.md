@@ -1,4 +1,4 @@
-# webapp-starter
+# hello-world
 
 Agent-ready **Next.js App Router + TypeScript + Supabase + Vercel** template. It renders a hello-world page and `/api/health` without Supabase credentials; the Supabase client helpers are included for features that need a database. **No authentication, live database health check, or automatic migration deployment is preconfigured.**
 
@@ -11,14 +11,14 @@ Agent-ready **Next.js App Router + TypeScript + Supabase + Vercel** template. It
   safeguards, follow [the deployment setup runbook](docs/DEPLOYMENT_SETUP.md).
 
 ## 1. Start from the ZIP
-1. Extract into a folder named `webapp-starter` (or your project name).
+1. Extract into a folder named `hello-world` (or your project name).
 2. `npm install` (creates a package-lock.json), then `npm run check`, then `npm run dev`.
 3. Visit `http://localhost:3000` and `http://localhost:3000/api/health`.
 4. Create an empty GitHub repository, then:
    ```bash
    git init
    git add .
-   git commit -m "Initialize webapp starter"
+   git commit -m "Initialize hello-world"
    git branch -M main
    git remote add origin https://github.com/YOUR-USER/YOUR-REPO.git
    git push -u origin main

@@ -207,7 +207,7 @@ opened:
 3. Check that `/` loads and `/api/health` returns HTTP 200 with:
 
    ```json
-   { "status": "ok", "service": "webapp-starter" }
+   { "status": "ok", "service": "hello-world" }
    ```
 
 4. In Vercel's project settings, confirm the Preview environment has the
