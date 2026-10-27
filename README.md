@@ -32,7 +32,7 @@ Agent-ready **Next.js App Router + TypeScript + Supabase + Vercel** template. It
 1. In [Supabase](https://supabase.com/dashboard), create `YOUR-APP` in your preferred region.
 2. In the project go to **Connect / API settings** and collect the **Project URL** and **publishable key** (labels may vary). Do **not** use the secret or service-role key in client code or any `NEXT_PUBLIC_` variable.
 3. For local development copy `.env.example` to `.env.local` and fill in the project's values. `.env.local` is gitignored.
-4. Database migration policy: initial SQL is an intentionally empty example. For future schema changes, review SQL first. Because there is only one database, run `supabase db push` only after a human explicitly approves it, and validate the linked project before every push.
+4. Database migration policy: the first real migration, `20261027000000_create_greetings.sql` (read-only `greetings` table), is applied manually; see [specs/greetings.md](specs/greetings.md). For schema changes, review SQL first. Because there is only one database, run `supabase db push` only after a human explicitly approves it, and validate the linked project before every push.
 5. There is no migration GitHub Action on purpose. Coordinate release order for schema-dependent features.
 
 ## 3. Vercel — connect GitHub
