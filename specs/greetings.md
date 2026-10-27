@@ -24,6 +24,13 @@ Additive (new table only), so the currently deployed app is unaffected. The data
 6. `npx supabase db push`
 7. `npx supabase migration list`: all migrations applied.
 
+### Apply via the Supabase dashboard (alternative to the CLI)
+Same approval rule applies. The SQL Editor does not record the migration in Supabase's migration history.
+1. Open the project's **SQL Editor** and choose **New query**. Confirm the project ref in the URL (`/project/<ref>`) matches the host of `SUPABASE_URL`.
+2. Paste the exact contents of the migration file and click **Run**. Run it once only: a re-run fails on `create table` and could duplicate seed rows.
+3. Check **Table Editor > greetings** (3 rows, RLS enabled) and **Authentication > Policies** (one SELECT policy for `anon` and `authenticated`).
+4. Only if the CLI will be used against this project later: `npx supabase link --project-ref <ref>`, then `npx supabase migration repair --status applied 20261027000000`. Otherwise a later `db push` will try to re-apply it and fail.
+
 ### Verify the database (values from env; never print keys)
 - Read: `curl -s "$SUPABASE_URL/rest/v1/greetings?select=id,message" -H "apikey: $SUPABASE_PUBLISHABLE_KEY"` returns 3 rows.
 - Write denied: `curl -s -X POST "$SUPABASE_URL/rest/v1/greetings" -H "apikey: $SUPABASE_PUBLISHABLE_KEY" -H "Content-Type: application/json" -d '{"message":"x"}'` returns 401/403 and the row count stays 3.
