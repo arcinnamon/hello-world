@@ -1,7 +1,8 @@
 # Deployment setup runbook
 
-This runbook deploys this repository to GitHub-connected Vercel and keeps
-staging and production data in separate Supabase projects. Follow the steps in
+This runbook deploys this repository to GitHub-connected Vercel with a single
+Supabase project shared by local development, Preview, and Production
+(see ADR-0003). Follow the steps in
 order. Do not put passwords, API keys, or tokens in Issues, pull requests, chat,
 or committed files.
 
@@ -21,18 +22,17 @@ Pause point and suggested starting place for the next session:
 - At the last check, `README.md` had additional uncommitted edits. Review and
   preserve them; do not stage them accidentally while pushing the runbook.
 - The user reports that creating `hello-world-staging` used the remaining
-  project slot on the Supabase Free plan (two-project limit). A separate
-  production Supabase project is not available under the current project
-  capacity. Check the account's current plan/options tomorrow; do not delete or
-  alter an existing Supabase project without confirming its owner, data, and
-  backups.
+  project slot on the Supabase Free plan (two-project limit). Per ADR-0003 the
+  project is now the single Supabase project for all environments; do not
+  delete or alter an existing Supabase project without confirming its owner,
+  data, and backups.
 - The user plans to set up GitHub Pro before trying the GitHub/Copilot
   workflow. This is a user-reported prerequisite; confirm that the selected
   plan enables the desired Copilot coding-agent capabilities before relying on
   it.
 - Vercel is not connected. The initial Vercel deployment is a production
   deployment, and production deployment has not been authorized.
-- No production Supabase project, production environment variables, migrations,
+- No production environment variables, migrations,
   branch-protection rules, Vercel deployment, or production URL are verified.
 
 ### Start here next session
@@ -61,9 +61,8 @@ Pause point and suggested starting place for the next session:
    Skip the Vercel preview part unless Vercel has been connected and its
    first-production-deployment behavior has been addressed and explicitly
    approved.
-7. Revisit production Supabase capacity separately. Keep staging and production
-   isolated as required by `docs/adr/0002-separate-supabase-environments.md`;
-   do not point both environments at the staging project as a workaround.
+7. Supabase uses one shared project (ADR-0003, which supersedes ADR-0002).
+   Revisit isolation before storing real user data.
 
 ## Names to decide before creating resources
 
@@ -72,16 +71,15 @@ point:
 
 | Service | Resource | Suggested name | Naming note |
 | --- | --- | --- | --- |
-| Supabase | Staging project | `hello-world-staging` | A descriptive project name. Record the Project URL and generated project reference shown by Supabase; do not derive either from this name. |
-| Supabase | Production project | `hello-world-production` | Separate project, database password, Project URL, and publishable key from staging. |
+| Supabase | Project | `hello-world` (or the existing `hello-world-staging`; renaming is optional) | A descriptive project name. Record the Project URL and generated project reference shown by Supabase; do not derive either from this name. |
 | Vercel | Application project | `hello-world` | One Vercel project serves both Preview and Production. Choose a project name that is available in the Vercel team/account you select. If unavailable, add a short distinguishing suffix, such as `hello-world-arcinnamon`. |
 | GitHub | Repository | `arcinnamon/hello-world` | This repository already exists. Do not create a duplicate. |
 
-The Supabase names above distinguish environments; the project name is not the
-connection value. Supabase displays a project URL/reference for each project.
-Copy those values from the dashboard and keep a private staging/production
-mapping. Vercel's project-name field must be available in the selected Vercel
-team/account. Check availability in the dashboard at creation time.
+The Supabase project name is not the connection value. Supabase displays a
+project URL/reference for the project. Copy those values from the dashboard
+and keep them in a private password manager. Vercel's project-name field must
+be available in the selected Vercel team/account. Check availability in the
+dashboard at creation time.
 
 ## 1. Verify the local repository
 
@@ -119,38 +117,34 @@ git push -u origin BRANCH_NAME
 If you are applying a local feature-branch change, push that feature branch and
 open a pull request to `main`; do not push feature work directly to `main`.
 
-## 3. Create the two Supabase projects
+## 3. Create the Supabase project
 
-Repeat these steps once for each project:
+If the project already exists (for example `hello-world-staging`), skip to
+step 8 and reuse it.
 
 1. Sign in at [Supabase Dashboard](https://supabase.com/dashboard).
 2. Select the organization that should own the project. Check its billing and
    access settings before creating resources.
 3. Choose **New project**.
-4. Enter the project name from the table above:
-   - `hello-world-staging`
-   - `hello-world-production`
-5. Choose the same specific US region for both projects, preferably near the
+4. Enter the project name from the table above.
+5. Choose a specific US region, preferably near the
    app's users. The dashboard's region list may use specific city/region names;
    choose the actual listed region, not just the general label "US".
-6. Create a strong, distinct database password for each project. Enter it
+6. Create a strong database password. Enter it
    directly in Supabase and save it in a password manager. Do not send it to
    an agent or place it in source control.
 7. Review the selected plan, billing, and resource settings, then create the
    project and wait for provisioning to finish.
 8. Open the project's **Connect** panel or **Project Settings → API**. Record
-   the **Project URL** and **publishable key** in your password manager with
-   the correct environment label.
-9. Repeat for the other environment. Double-check that the staging and
-   production URLs/keys are not swapped.
+   the **Project URL** and **publishable key** in your password manager.
 
-Use only the publishable key in browser-facing configuration. Never use a
-secret or service-role key in a `NEXT_PUBLIC_` variable.
+Use only the publishable key. Never use a
+secret or service-role key in a `NEXT_PUBLIC_` variable or client code.
 
 This starter's initial migration is intentionally empty. Do not apply
-migrations as part of this setup. Future schema changes must be reviewed and
-applied to staging first; production migrations require separate human
-approval.
+migrations as part of this setup. Because one database serves every
+environment, any future migration affects live data immediately: review the
+SQL in the PR and apply it only with explicit human approval.
 
 ## 4. Import the GitHub repository into Vercel
 
@@ -173,16 +167,13 @@ approval.
 After the project exists, configure its environment variables:
 
 1. Open **Project Settings → Environment Variables**.
-2. Add `NEXT_PUBLIC_SUPABASE_URL` and choose the correct environment scope:
-   - **Preview** and **Development**: staging Supabase Project URL.
-   - **Production**: production Supabase Project URL.
-3. Add `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` with the matching key scopes:
-   - **Preview** and **Development**: staging publishable key.
-   - **Production**: production publishable key.
-4. Save the variables. Inspect each scope before saving to ensure staging and
-   production values are not interchanged.
+2. Add `SUPABASE_URL` and select **Production**, **Preview**
+   and **Development**, using the Supabase Project URL.
+3. Add `SUPABASE_PUBLISHABLE_KEY` with the same three scopes,
+   using the publishable key.
+4. Save the variables and confirm all three scopes are selected.
 5. Do not paste the values into a PR, Issue, chat, or terminal command. If the
-   app is run locally, use staging values in the gitignored `.env.local` file.
+   app is run locally, use the same values in the gitignored `.env.local` file.
 
 Vercel's default environments include Preview and Production (and Local for
 development). A separate Vercel project is not required for staging. With Git
@@ -219,8 +210,9 @@ opened:
    { "status": "ok", "service": "hello-world" }
    ```
 
-4. In Vercel's deployment/project settings, confirm the Preview environment
-   uses the staging Supabase values. The health endpoint does not connect to
+4. In Vercel's project settings, confirm the Preview environment has the
+   Supabase variables set. Preview shares the production database, so avoid
+   destructive actions in previews. The health endpoint does not connect to
    or verify a Supabase database.
 5. Review the code, checks, any migration, and Preview before approving the
    pull request. Only a human should approve and merge.
@@ -244,10 +236,10 @@ opened:
 
 Before the first production deployment, verify all of the following:
 
-- The production Supabase project is distinct from staging and its values are
-  scoped only to Vercel Production.
+- The Supabase variables are set for the Vercel Production scope.
 - The PR and required CI checks passed and a human reviewed the Preview.
-- Any database change was reviewed and separately approved for production.
+- Any database change was reviewed and separately approved, since it applies to
+  the only database.
 - A human explicitly approved the production deployment.
 
 After the authorized deployment, open the production URL and verify `/` and

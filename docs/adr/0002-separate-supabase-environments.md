@@ -1,6 +1,6 @@
 # ADR-0002: Separate Supabase staging and production
 
-**Status:** Accepted
+**Status:** Superseded by [ADR-0003](0003-single-supabase-project.md)
 **Date:** 2026-10-26
 
 ## Context
