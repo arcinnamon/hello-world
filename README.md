@@ -6,6 +6,9 @@ Agent-ready **Next.js App Router + TypeScript + Supabase + Vercel** template. It
 - Git, Node.js 22+, npm, a GitHub account, Vercel account, and Supabase account.
 - IDE with GitHub Copilot Chat / Agent Mode (optional for deployment setup).
 - Two distinct Supabase projects: staging and production.
+- Empty repo created.
+- For detailed resource names, dashboard steps, environment scopes, and release
+  safeguards, follow [the deployment setup runbook](docs/DEPLOYMENT_SETUP.md).
 
 ## 1. Start from the ZIP
 1. Extract into a folder named `webapp-starter` (or your project name).
@@ -25,6 +28,7 @@ Agent-ready **Next.js App Router + TypeScript + Supabase + Vercel** template. It
 > Create your lockfile with `npm install` before pushing: CI uses `npm ci` and requires `package-lock.json`. If you encounter dependency compatibility errors, ask IDE Copilot to reconcile versions and rerun `npm run check` before pushing.
 
 ## 2. Supabase — create two projects
+0. Use settings to update which GitHub repos are shared to Supabase.
 1. In [Supabase](https://supabase.com/dashboard), create `YOUR-APP-staging` and `YOUR-APP-production` in your preferred region.
 2. In each project go to **Connect / API settings** and collect the **Project URL** and **publishable key** (labels may vary). Do **not** use the secret or service-role key in the browser.
 3. For local development copy `.env.example` to `.env.local` and fill in **staging** values. `.env.local` is gitignored.
@@ -32,6 +36,7 @@ Agent-ready **Next.js App Router + TypeScript + Supabase + Vercel** template. It
 5. There is no production migration GitHub Action on purpose. Coordinate release order for schema-dependent features.
 
 ## 3. Vercel — connect GitHub
+0. Use settings to update which GitHub repos are shared to Vercel.
 1. In [Vercel](https://vercel.com/new), import the GitHub repository; set framework **Next.js** and production branch **main**.
 2. In Project **Settings > Environment Variables** create these names:
    - `NEXT_PUBLIC_SUPABASE_URL`
