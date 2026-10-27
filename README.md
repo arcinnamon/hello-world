@@ -30,7 +30,7 @@ Agent-ready **Next.js App Router + TypeScript + Supabase + Vercel** template. It
 ## 2. Supabase — create one project
 0. Use settings to update which GitHub repos are shared to Supabase.
 1. In [Supabase](https://supabase.com/dashboard), create `YOUR-APP` in your preferred region.
-2. In the project go to **Connect / API settings** and collect the **Project URL** and **publishable key** (labels may vary). Do **not** use the secret or service-role key in the browser.
+2. In the project go to **Connect / API settings** and collect the **Project URL** and **publishable key** (labels may vary). Do **not** use the secret or service-role key in client code or any `NEXT_PUBLIC_` variable.
 3. For local development copy `.env.example` to `.env.local` and fill in the project's values. `.env.local` is gitignored.
 4. Database migration policy: initial SQL is an intentionally empty example. For future schema changes, review SQL first. Because there is only one database, run `supabase db push` only after a human explicitly approves it, and validate the linked project before every push.
 5. There is no migration GitHub Action on purpose. Coordinate release order for schema-dependent features.
@@ -39,8 +39,8 @@ Agent-ready **Next.js App Router + TypeScript + Supabase + Vercel** template. It
 0. Use settings to update which GitHub repos are shared to Vercel.
 1. In [Vercel](https://vercel.com/new), import the GitHub repository; set framework **Next.js** and production branch **main**.
 2. In Project **Settings > Environment Variables** create these names:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+   - `SUPABASE_URL`
+   - `SUPABASE_PUBLISHABLE_KEY`
 3. Assign the same Supabase URL and publishable key to **Production**, **Preview** and **Development**.
 4. Redeploy when environment variables change.
 5. Deploy from `main`; verify the live home page and `/api/health` responds with `{ "status": "ok", "service": "webapp-starter" }`.

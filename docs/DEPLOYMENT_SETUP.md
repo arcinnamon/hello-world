@@ -138,8 +138,8 @@ step 8 and reuse it.
 8. Open the project's **Connect** panel or **Project Settings → API**. Record
    the **Project URL** and **publishable key** in your password manager.
 
-Use only the publishable key in browser-facing configuration. Never use a
-secret or service-role key in a `NEXT_PUBLIC_` variable.
+Use only the publishable key. Never use a
+secret or service-role key in a `NEXT_PUBLIC_` variable or client code.
 
 This starter's initial migration is intentionally empty. Do not apply
 migrations as part of this setup. Because one database serves every
@@ -167,9 +167,9 @@ SQL in the PR and apply it only with explicit human approval.
 After the project exists, configure its environment variables:
 
 1. Open **Project Settings → Environment Variables**.
-2. Add `NEXT_PUBLIC_SUPABASE_URL` and select **Production**, **Preview**
+2. Add `SUPABASE_URL` and select **Production**, **Preview**
    and **Development**, using the Supabase Project URL.
-3. Add `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` with the same three scopes,
+3. Add `SUPABASE_PUBLISHABLE_KEY` with the same three scopes,
    using the publishable key.
 4. Save the variables and confirm all three scopes are selected.
 5. Do not paste the values into a PR, Issue, chat, or terminal command. If the
