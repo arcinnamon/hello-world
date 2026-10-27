@@ -154,7 +154,7 @@ After Vercel and GitHub Actions are configured:
    health route should return HTTP 200 with:
 
    ```json
-   { "status": "ok", "service": "webapp-starter" }
+   { "status": "ok", "service": "hello-world" }
    ```
 
 5. Confirm the Preview environment has the Supabase variables set. Preview
