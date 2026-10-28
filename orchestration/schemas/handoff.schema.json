@@ -1,0 +1,278 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/arcinnamon/hello-world/orchestration/schemas/handoff.schema.json",
+  "title": "Phase handoff",
+  "description": "Record written at the end of each phase attempt, as defined in orchestration/phases.yml. Must never contain secrets, keys or tokens.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "issue",
+    "from_phase",
+    "to_phase",
+    "status",
+    "attempt",
+    "issue_state",
+    "summary",
+    "gate_results",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "number"],
+      "properties": {
+        "repository": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+        "number": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "from_phase": { "$ref": "#/$defs/phase" },
+    "to_phase": {
+      "description": "Next phase, or null when waiting on a human, blocked, or finished.",
+      "oneOf": [{ "$ref": "#/$defs/phase" }, { "type": "null" }]
+    },
+    "status": {
+      "enum": ["passed", "failed", "awaiting_approval", "blocked"]
+    },
+    "attempt": {
+      "description": "1-based attempt of from_phase for this Issue.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3
+    },
+    "build_attempts": {
+      "description": "Build attempts consumed for this Issue so far. Test and Harden are only entered after a Build and every failure re-enters Build, so this one counter bounds the whole loop.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3
+    },
+    "issue_state": {
+      "description": "The state:* label the Issue moves to after this handoff.",
+      "enum": [
+        "intent",
+        "adversary",
+        "awaiting-spec-approval",
+        "build",
+        "test",
+        "harden",
+        "awaiting-merge-approval",
+        "deploy",
+        "blocked",
+        "done"
+      ]
+    },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "pull_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["number", "head_sha"],
+      "properties": {
+        "number": { "type": "integer", "minimum": 1 },
+        "url": { "type": "string", "format": "uri" },
+        "head_sha": { "type": "string", "pattern": "^[0-9a-f]{7,40}$" }
+      }
+    },
+    "migrations": {
+      "description": "Migration files in the change. Applying them requires separate human authorization.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["files", "applied"],
+      "properties": {
+        "files": { "type": "array", "items": { "type": "string", "pattern": "^supabase/migrations/.+\\.sql$" } },
+        "applied": { "type": "boolean" }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "ref"],
+        "properties": {
+          "type": { "enum": ["issue", "spec", "adr", "review", "pull_request", "commit", "ci_run", "preview", "deployment", "report"] },
+          "ref": { "type": "string", "minLength": 1, "description": "Repository path, URL or identifier." },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "gate_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["gate", "result"],
+        "properties": {
+          "gate": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$", "description": "Gate id from phases.yml." },
+          "result": { "enum": ["passed", "failed", "pending", "not_applicable"] },
+          "evidence": { "type": "string" }
+        },
+        "if": { "properties": { "result": { "enum": ["passed", "failed"] } }, "required": ["result"] },
+        "then": { "required": ["evidence"] }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "severity", "description", "status"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "severity": { "enum": ["low", "medium", "high", "critical"] },
+          "description": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["open", "resolved", "accepted_risk"] }
+        }
+      }
+    },
+    "approvals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["gate", "decision", "approver", "approver_type", "evidence_url", "decided_at"],
+        "properties": {
+          "gate": { "enum": ["spec_approval", "merge_approval"] },
+          "decision": { "enum": ["approved", "rejected", "changes_requested"] },
+          "approver": { "type": "string", "minLength": 1, "description": "GitHub login of the approving human." },
+          "approver_type": { "const": "human" },
+          "evidence_url": { "type": "string", "format": "uri", "description": "Link to the Issue comment or PR review recording the approval." },
+          "decided_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "created_at": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "phase": { "enum": ["intent", "adversary", "build", "test", "harden", "deploy"] },
+    "specApproved": {
+      "required": ["approvals"],
+      "properties": {
+        "approvals": {
+          "contains": {
+            "type": "object",
+            "properties": { "gate": { "const": "spec_approval" }, "decision": { "const": "approved" } },
+            "required": ["gate", "decision"]
+          }
+        }
+      }
+    },
+    "mergeApproved": {
+      "required": ["approvals"],
+      "properties": {
+        "approvals": {
+          "contains": {
+            "type": "object",
+            "properties": { "gate": { "const": "merge_approval" }, "decision": { "const": "approved" } },
+            "required": ["gate", "decision"]
+          }
+        }
+      }
+    },
+    "needsPullRequest": { "required": ["pull_request"] },
+    "needsBuildAttempts": { "required": ["build_attempts"] },
+    "buildBudgetSpent": { "properties": { "build_attempts": { "const": 3 } }, "required": ["build_attempts"] }
+  },
+  "allOf": [
+    {
+      "description": "Only Build, Test and Harden retry; other phases run once.",
+      "if": { "properties": { "from_phase": { "enum": ["intent", "adversary", "deploy"] } }, "required": ["from_phase"] },
+      "then": { "properties": { "attempt": { "const": 1 } } }
+    },
+    {
+      "description": "Retrying phases must report the Build attempt counter that bounds the loop.",
+      "if": { "properties": { "from_phase": { "enum": ["build", "test", "harden"] } }, "required": ["from_phase"] },
+      "then": { "$ref": "#/$defs/needsBuildAttempts" }
+    },
+    {
+      "description": "Passed handoffs may only follow the legal forward edges. Build starts only after an approved spec_approval and Deploy only after an approved merge_approval; every other pairing (for example intent to build, or test to deploy) is invalid.",
+      "if": { "properties": { "status": { "const": "passed" } }, "required": ["status"] },
+      "then": {
+        "oneOf": [
+          {
+            "properties": { "from_phase": { "const": "intent" }, "to_phase": { "const": "adversary" }, "issue_state": { "const": "adversary" } }
+          },
+          {
+            "properties": { "from_phase": { "const": "adversary" }, "to_phase": { "const": "build" }, "issue_state": { "const": "build" } },
+            "$ref": "#/$defs/specApproved"
+          },
+          {
+            "properties": { "from_phase": { "const": "build" }, "to_phase": { "const": "test" }, "issue_state": { "const": "test" } },
+            "$ref": "#/$defs/needsPullRequest"
+          },
+          {
+            "properties": { "from_phase": { "const": "test" }, "to_phase": { "const": "harden" }, "issue_state": { "const": "harden" } },
+            "$ref": "#/$defs/needsPullRequest"
+          },
+          {
+            "properties": { "from_phase": { "const": "harden" }, "to_phase": { "const": "deploy" }, "issue_state": { "const": "deploy" } },
+            "allOf": [{ "$ref": "#/$defs/mergeApproved" }, { "$ref": "#/$defs/needsPullRequest" }]
+          },
+          {
+            "properties": { "from_phase": { "const": "deploy" }, "to_phase": { "type": "null" }, "issue_state": { "const": "done" } },
+            "$ref": "#/$defs/needsPullRequest"
+          }
+        ]
+      }
+    },
+    {
+      "description": "A handoff that waits for approval has no next phase yet and the matching awaiting-* state.",
+      "if": { "properties": { "status": { "const": "awaiting_approval" } }, "required": ["status"] },
+      "then": {
+        "oneOf": [
+          {
+            "properties": { "from_phase": { "const": "adversary" }, "to_phase": { "type": "null" }, "issue_state": { "const": "awaiting-spec-approval" } }
+          },
+          {
+            "properties": { "from_phase": { "const": "harden" }, "to_phase": { "type": "null" }, "issue_state": { "const": "awaiting-merge-approval" } },
+            "$ref": "#/$defs/needsPullRequest"
+          }
+        ]
+      }
+    },
+    {
+      "description": "Blocked handoffs stop the loop and need a human. Any phase can block (see the *_to_blocked transitions in phases.yml).",
+      "if": { "properties": { "status": { "const": "blocked" } }, "required": ["status"] },
+      "then": {
+        "properties": {
+          "to_phase": { "type": "null" },
+          "issue_state": { "const": "blocked" }
+        }
+      }
+    },
+    {
+      "description": "Failed handoffs: an Adversary spec gap returns to Intent. Build, Test and Harden failures return to Build unless build_attempts has reached 3, in which case the Issue is blocked. Intent and Deploy cannot fail; Deploy uses status blocked.",
+      "if": { "properties": { "status": { "const": "failed" } }, "required": ["status"] },
+      "then": {
+        "oneOf": [
+          {
+            "properties": { "from_phase": { "const": "adversary" }, "to_phase": { "const": "intent" }, "issue_state": { "const": "intent" } }
+          },
+          {
+            "properties": { "from_phase": { "enum": ["build", "test", "harden"] } },
+            "$ref": "#/$defs/needsBuildAttempts",
+            "if": { "$ref": "#/$defs/buildBudgetSpent" },
+            "then": { "properties": { "to_phase": { "type": "null" }, "issue_state": { "const": "blocked" } } },
+            "else": { "properties": { "to_phase": { "const": "build" }, "issue_state": { "const": "build" } } }
+          }
+        ]
+      }
+    },
+    {
+      "description": "A rejected approval cannot accompany a handoff that moves forward.",
+      "if": { "required": ["approvals"], "properties": { "approvals": { "contains": { "properties": { "decision": { "enum": ["rejected", "changes_requested"] } }, "required": ["decision"] } } } },
+      "then": { "properties": { "status": { "enum": ["failed", "blocked"] } } }
+    },
+    {
+      "description": "A rejected spec_approval is recorded by the Adversary handoff (awaiting-spec-approval to intent).",
+      "if": { "required": ["approvals"], "properties": { "approvals": { "contains": { "properties": { "gate": { "const": "spec_approval" }, "decision": { "enum": ["rejected", "changes_requested"] } }, "required": ["gate", "decision"] } } } },
+      "then": { "properties": { "from_phase": { "const": "adversary" } } }
+    },
+    {
+      "description": "A rejected merge_approval is recorded by the Harden handoff (awaiting-merge-approval to build).",
+      "if": { "required": ["approvals"], "properties": { "approvals": { "contains": { "properties": { "gate": { "const": "merge_approval" }, "decision": { "enum": ["rejected", "changes_requested"] } }, "required": ["gate", "decision"] } } } },
+      "then": { "properties": { "from_phase": { "const": "harden" } } }
+    }
+  ]
+}

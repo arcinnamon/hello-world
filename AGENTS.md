@@ -10,3 +10,4 @@
 8. Propose a new MADR ADR when changing a significant architecture choice; do not silently overturn accepted ADRs.
 9. PR must explain the change, verification, preview link if available, migrations, risks, and unresolved questions.
 10. For authentication, follow current Supabase SSR guidance (including session refresh proxy/middleware) rather than assuming the included basic clients are a complete auth solution.
+11. Once a human sets ADR-0005 to Accepted, move work through the phases in `ORCHESTRATION.md` (`orchestration/phases.yml`): never start Build without human `spec_approval`, never exceed three Build attempts (`build_attempts`; Test and Harden are bounded by it), and never merge without human `merge_approval`. Until then the contract is a proposal and does not bind.
