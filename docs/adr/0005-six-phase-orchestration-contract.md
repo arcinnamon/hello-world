@@ -1,6 +1,6 @@
 # ADR-0005: Six-phase orchestration contract with two human approvals
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-28
 
 ## Context

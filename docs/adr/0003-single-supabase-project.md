@@ -1,6 +1,6 @@
 # ADR-0003: Use a single Supabase project
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-27
 **Supersedes:** [ADR-0002](0002-separate-supabase-environments.md)
 

@@ -18,3 +18,11 @@ intent -> adversary -> build -> test -> harden -> deploy
 - pull request
 - merge
 - deploy
+
+# Using the agentic flow
+
+## From Github
+
+- open issue
+
+## 
