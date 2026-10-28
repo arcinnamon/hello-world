@@ -6,5 +6,5 @@
 - Supabase access is server-only: use `lib/supabase/server.ts` with `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` (no `NEXT_PUBLIC_` variables, no browser client; see ADR-0004).
 - Schema: migrations in `supabase/migrations/`; keep backwards-compatible migrations whenever possible; review SQL in the PR and apply it only with explicit human authorization. Never assume merging a PR automatically migrates the database.
 - Security: least privilege, RLS for user-accessible tables, no secret keys in browser.
-- Agent handoff: Issue -> agent branch + PR -> CI + Preview -> human approval -> merge -> Vercel production.
+- Agent handoff: Issue -> agent branch + PR -> CI + Preview -> human approval -> merge -> Vercel production. Phases, gates, Issue states, retry limits and the two mandatory human approvals are defined in `ORCHESTRATION.md` (ADR-0005).
 - ADRs: `docs/adr/`; significant architectural deviations require proposed ADR and human approval.

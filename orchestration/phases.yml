@@ -1,0 +1,233 @@
+# Machine-readable phase contract. Narrative and rationale: ORCHESTRATION.md.
+# Declarative only: nothing in this repository executes it yet.
+# Repository rules (branching, secrets, migrations, ADRs) live in AGENTS.md and
+# ARCHITECTURE.md and are referenced here, not restated.
+version: 1
+handoff_schema: schemas/handoff.schema.json
+
+phase_order: [intent, adversary, build, test, harden, deploy]
+
+retry:
+  # An attempt is one execution of a phase that ends in a handoff.
+  # Counters are per Issue and per phase; only a human can reset them.
+  max_attempts: 3
+  applies_to: [build, test, harden]
+  # test and harden failures route back to build. Test and harden are only
+  # entered after a build, so the build counter bounds the whole loop (each
+  # test or harden attempt is preceded by its own build attempt).
+  # Handoffs from build, test and harden carry `build_attempts`. A failure
+  # routes to build while build_attempts < max_attempts; otherwise the Issue
+  # is blocked. A rejected approval is a failure and counts the same way.
+  on_failure_route_to: build
+  on_exhausted:
+    issue_state: blocked
+    action: stop_and_escalate_to_human
+
+human_approvals:
+  spec_approval:
+    after_phase: adversary
+    before_phase: build
+    approves: Specification, acceptance criteria and adversarial review findings.
+  merge_approval:
+    after_phase: harden
+    before_phase: deploy
+    approves: Merge of the PR to main, which triggers the Vercel production deployment.
+  rules:
+    - Approver is a human GitHub user, recorded in the handoff with a link to the approval.
+    - Agents never grant, infer or self-approve an approval.
+    - Approval is of the exact commit or specification reviewed; later changes invalidate it.
+
+# Issue state is expressed as exactly one `state:*` label on the GitHub Issue.
+# Labels are a convention; this change does not create them.
+issue_states:
+  - id: intent
+    label: "state:intent"
+    phase: intent
+    actor: agent
+  - id: adversary
+    label: "state:adversary"
+    phase: adversary
+    actor: agent
+  - id: awaiting-spec-approval
+    label: "state:awaiting-spec-approval"
+    waiting_on: spec_approval
+    actor: human
+  - id: build
+    label: "state:build"
+    phase: build
+    actor: agent
+  - id: test
+    label: "state:test"
+    phase: test
+    actor: agent
+  - id: harden
+    label: "state:harden"
+    phase: harden
+    actor: agent
+  - id: awaiting-merge-approval
+    label: "state:awaiting-merge-approval"
+    waiting_on: merge_approval
+    actor: human
+  - id: deploy
+    label: "state:deploy"
+    phase: deploy
+    actor: human
+  - id: blocked
+    label: "state:blocked"
+    description: Retries exhausted or an unresolved question needs a human decision.
+    actor: human
+  - id: done
+    label: "state:done"
+    description: Production verified; Issue closed.
+    terminal: true
+
+# Each transition is recorded by one handoff whose `from_phase` is the phase that
+# ran (the awaiting-* states are left by the handoff of the phase that entered them):
+#   spec_gap_found, spec_approval_rejected -> status failed from adversary, to intent
+#   merge_approval_rejected                -> status failed from harden, to build
+#   *_gates_passed, *_approval_granted     -> status passed (awaiting_approval while waiting)
+#   attempts_exhausted, *_question, deploy_failed -> status blocked (failed at the last
+#                                             Build/Test/Harden attempt also ends blocked)
+# Intent, adversary and deploy never retry: they either pass, return to intent
+# (adversary only) or block. Returning to intent starts a new run at attempt 1.
+transitions:
+  - {from: intent, to: adversary, when: intent_gates_passed}
+  - {from: adversary, to: intent, when: spec_gap_found}
+  - {from: adversary, to: awaiting-spec-approval, when: adversary_gates_passed}
+  - {from: awaiting-spec-approval, to: build, when: spec_approval_granted}
+  - {from: awaiting-spec-approval, to: intent, when: spec_approval_rejected}
+  - {from: build, to: test, when: build_gates_passed}
+  - {from: test, to: harden, when: test_gates_passed}
+  - {from: test, to: build, when: test_gates_failed_attempts_remaining}
+  - {from: harden, to: awaiting-merge-approval, when: harden_gates_passed}
+  - {from: harden, to: build, when: harden_gates_failed_attempts_remaining}
+  - {from: awaiting-merge-approval, to: deploy, when: merge_approval_granted}
+  - {from: awaiting-merge-approval, to: build, when: merge_approval_rejected}
+  - {from: deploy, to: done, when: deploy_gates_passed}
+  - {from: adversary, to: blocked, when: unresolved_question}
+  - {from: intent, to: blocked, when: unresolved_question}
+  - {from: build, to: blocked, when: attempts_exhausted_or_unresolved_question}
+  - {from: test, to: blocked, when: attempts_exhausted_or_unresolved_question}
+  - {from: harden, to: blocked, when: attempts_exhausted_or_unresolved_question}
+  - {from: deploy, to: blocked, when: deploy_failed_or_unresolved_question}
+  - {from: blocked, to: intent, when: human_restarts_from_intent}
+  - {from: blocked, to: build, when: human_resets_attempts}
+
+# Gate kinds: `check` (inspectable evidence), `command` (run locally or in CI),
+# `human` (explicit approval recorded in the handoff).
+phases:
+  - id: intent
+    purpose: Turn the Issue into an unambiguous, testable specification.
+    actor: agent
+    issue_state: intent
+    max_attempts: 1
+    inputs:
+      - GitHub Issue (.github/ISSUE_TEMPLATE/feature.yml fields)
+      - AGENTS.md, ARCHITECTURE.md and the accepted docs/adr decisions
+      - Existing specs/*.md related to the feature
+    outputs:
+      - Specification in the Issue or specs/<feature>.md linked from the Issue
+      - Testable acceptance criteria with explicit scope and out-of-scope
+      - Declared impact on data model, shared Supabase project, auth and secrets
+      - Open questions, each answered or escalated
+    completion_gates:
+      - {id: spec-present, kind: check, description: Specification exists and is linked from the Issue.}
+      - {id: criteria-testable, kind: check, description: Every acceptance criterion can be verified by a test or a named manual check.}
+      - {id: impact-declared, kind: check, description: Data, migration, auth and ADR impact are declared, including "none".}
+      - {id: no-open-ambiguity, kind: check, description: Material ambiguity is resolved by asking a human (AGENTS.md rule 4).}
+
+  - id: adversary
+    purpose: Attack the specification before any code exists.
+    actor: agent
+    issue_state: adversary
+    max_attempts: 1
+    inputs:
+      - Intent handoff and the specification
+      - Accepted ADRs, ARCHITECTURE.md, existing migrations
+    outputs:
+      - Adversarial review as an Issue comment or specs/<feature>.md section
+      - Findings with severity and a resolution or accepted-risk decision
+      - Conflicts with accepted ADRs, and whether a new ADR must be proposed
+      - Misuse, failure, rollback and shared-database (ADR-0003) scenarios
+    completion_gates:
+      - {id: review-recorded, kind: check, description: Review covers abuse and failure cases, data exposure, RLS, secrets, rollback and preview-touches-production risk.}
+      - {id: no-unresolved-blockers, kind: check, description: No finding of blocking severity is unresolved; each is fixed in the spec or explicitly accepted.}
+      - {id: adr-conflicts-handled, kind: check, description: Any accepted-ADR conflict is flagged and a Proposed ADR is planned rather than silently overriding.}
+      - {id: spec-approval, kind: human, approval: spec_approval, description: A human approves the specification and adversarial review before Build starts.}
+
+  - id: build
+    purpose: Implement the approved specification on a feature branch.
+    actor: agent
+    issue_state: build
+    max_attempts: 3
+    inputs:
+      - Approved handoff carrying spec_approval
+      - Failure findings from a previous Test or Harden handoff, when retrying
+    outputs:
+      - Feature branch and pull request following .github/pull_request_template.md
+      - Code and tests covering each acceptance criterion
+      - Migration files in supabase/migrations/ if needed, not applied
+      - ADR (status Proposed) if an architecture choice changed
+    completion_gates:
+      - {id: branch-and-pr, kind: check, description: Work is on a feature branch with an open PR; nothing pushed to main.}
+      - {id: local-check, kind: command, command: npm run check, description: Lint, typecheck, tests and build pass.}
+      - {id: scope-respected, kind: check, description: Diff stays within the approved specification.}
+      - {id: no-secrets, kind: check, description: No credentials committed and no NEXT_PUBLIC_ Supabase variables introduced.}
+
+  - id: test
+    purpose: Verify behavior against the acceptance criteria independently of how it was built.
+    actor: agent
+    issue_state: test
+    max_attempts: 3
+    inputs:
+      - Build handoff and PR head commit
+      - Acceptance criteria from the specification
+    outputs:
+      - Criterion-to-evidence mapping (test name or manual check result)
+      - CI result for the PR head commit
+      - Vercel Preview results for the affected routes, plus / and /api/health
+      - Defect list for a failure handoff to Build
+    completion_gates:
+      - {id: ci-verify, kind: command, command: npm run check, description: CI `verify` check passes on the PR head commit.}
+      - {id: criteria-covered, kind: check, description: Every acceptance criterion maps to passing evidence.}
+      - {id: preview-checked, kind: check, description: Preview deployment inspected; reads and writes there affect the shared database.}
+      - {id: existing-behavior-preserved, kind: check, description: /api/health response and unrelated routes are unchanged.}
+
+  - id: harden
+    purpose: Review the change for security, safety and operability before human review.
+    actor: agent
+    issue_state: harden
+    max_attempts: 3
+    inputs:
+      - Test handoff and PR head commit
+      - Migration SQL and RLS policies, if any
+    outputs:
+      - Hardening report in the PR description or a PR comment
+      - Findings with severity and status
+      - Migration rollout and rollback plan, if a migration is included
+      - Release-order notes for schema-dependent features
+    completion_gates:
+      - {id: security-review, kind: check, description: Secrets, server-only Supabase access (ADR-0004), input handling and dependency changes reviewed.}
+      - {id: rls-reviewed, kind: check, description: User-accessible tables have RLS policies; SQL is reviewed (not applied).}
+      - {id: no-open-high-findings, kind: check, description: No unresolved high or critical finding.}
+      - {id: pr-ready, kind: check, description: PR body is complete per the template (verification, migrations, ADR, risks, rollback).}
+      - {id: merge-approval, kind: human, approval: merge_approval, description: A human approves merging to main.}
+
+  - id: deploy
+    purpose: Release the approved PR to production and verify it.
+    actor: human
+    issue_state: deploy
+    max_attempts: 1
+    inputs:
+      - Harden handoff carrying merge_approval
+      - Green CI `verify` check and reviewed Vercel Preview
+      - Human-applied migration, when the release depends on one
+    outputs:
+      - PR merged to main by a human
+      - Vercel production deployment of the merge
+      - Production verification record (/ and /api/health)
+    completion_gates:
+      - {id: human-merge, kind: human, approval: merge_approval, description: A human merges the PR; agents never merge or deploy production.}
+      - {id: migration-ordered, kind: check, description: Any required migration was applied by explicit human authorization before the merge.}
+      - {id: production-verified, kind: check, description: Production / renders and /api/health returns status "ok" (see tests/health.test.mjs for the current service name).}
+      - {id: issue-closed, kind: check, description: Issue closed by the merged PR and moved to state:done.}
