@@ -1,6 +1,6 @@
 # ADR-0004: Server-only Supabase access
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-27
 
 ## Context

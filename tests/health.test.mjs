@@ -4,9 +4,9 @@ import { readFileSync } from "node:fs";
 
 test("starter sanity check", () => assert.equal("ok", "ok"));
 
-test("homepage heading is bonjour", () => {
+test("homepage heading is hola", () => {
   const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
-  assert.match(page, /<h1>bonjour<\/h1>/);
+  assert.match(page, /<h1>hola<\/h1>/);
 });
 
 test("page title and health service use the repository name", () => {
