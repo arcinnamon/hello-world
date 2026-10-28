@@ -36,6 +36,9 @@ human_approvals:
     - Approver is a human GitHub user, recorded in the handoff with a link to the approval.
     - Agents never grant, infer or self-approve an approval.
     - Approval is of the exact commit or specification reviewed; later changes invalidate it.
+    - Adversary and Harden end at awaiting_approval. A human then records an approval
+      handoff (same from_phase, status passed, to_phase build or deploy, with the approval
+      entry); Build and Deploy start only from that handoff.
 
 # Issue state is expressed as exactly one `state:*` label on the GitHub Issue.
 # Labels are a convention; this change does not create them.

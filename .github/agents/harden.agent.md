@@ -60,7 +60,8 @@ Forbidden:
 
 Record one handoff matching [orchestration/schemas/handoff.schema.json](../../orchestration/schemas/handoff.schema.json) as an Issue comment, or in your final response if you cannot comment. Include `attempt`, `build_attempts`, `pull_request` (`number`, `head_sha`), `migrations`, `gate_results` with evidence, and `findings`.
 
-- Gates passed, waiting for a human: `status: awaiting_approval`, `to_phase: null`, `issue_state: awaiting-merge-approval`, `merge-approval` gate `pending`. Never set `to_phase: deploy` or add an `approvals` entry yourself.
+- Gates passed, waiting for a human: `status: awaiting_approval`, `to_phase: null`, `issue_state: awaiting-merge-approval`, `merge-approval` gate `pending`. Never set `to_phase: deploy` or add an `approvals` entry yourself. After a human approves, the human records the approval handoff (`status: passed`, `to_phase: deploy`, `issue_state: deploy`, with their `merge_approval` entry and the approved `pull_request.head_sha`); if asked to draft it, copy the login, link and time the human gave you, verbatim.
 - Gates failed and `build_attempts` < 3: `status: failed`, `to_phase: build`, `issue_state: build`.
 - Gates failed and `build_attempts` is 3: `status: failed`, `to_phase: null`, `issue_state: blocked`. Stop for a human.
 - Unresolved question: `status: blocked`, `to_phase: null`, `issue_state: blocked`.
+- Rejected by a human: if the human rejects the merge (`merge_approval` `rejected` or `changes_requested`), the human records the rejection handoff, a `failed` Harden handoff with their entry; it follows the two failed rules above, counting against `build_attempts`. Never record it yourself.

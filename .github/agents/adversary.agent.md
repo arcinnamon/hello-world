@@ -64,4 +64,4 @@ Adversary runs once and never retries. Record one handoff matching [orchestratio
 - Specification gap: `status: failed`, `to_phase: intent`, `issue_state: intent`, with the gaps as `findings`.
 - Unresolved question: `status: blocked`, `to_phase: null`, `issue_state: blocked`.
 
-Never add an `approvals` entry yourself.
+Never add an `approvals` entry yourself. If a human rejects the specification (`spec_approval` `rejected` or `changes_requested`), the human records a `failed` Adversary handoff to Intent with their entry; the rejection is theirs to record. After a human approves, the human records the approval handoff (`status: passed`, `to_phase: build`, `issue_state: build`, with their `spec_approval` entry); if asked to draft it, copy the login, link and time the human gave you, verbatim.

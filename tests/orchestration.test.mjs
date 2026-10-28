@@ -173,3 +173,107 @@ test("the example in ORCHESTRATION.md is a valid handoff", () => {
   assert.ok(example, "no json example found");
   assert.equal(validate(schema, JSON.parse(example)), true);
 });
+
+// Handoffs each agent's "## Handoff" section tells it to record. `by` is "agent" unless a human
+// records the handoff (approval handoffs). Each one must validate, and the agent file must state
+// the same status, to_phase and issue_state values.
+const prRef = { pull_request: pullRequest };
+const retry = (n) => ({ ...prRef, build_attempts: n, attempt: n });
+const agentHandoffs = {
+  intent: [
+    ["passes to adversary", { status: "passed", to_phase: "adversary", issue_state: "adversary" }],
+    ["blocks on a question", { status: "blocked", to_phase: null, issue_state: "blocked" }],
+  ],
+  adversary: [
+    ["awaits spec approval", { status: "awaiting_approval", to_phase: null, issue_state: "awaiting-spec-approval" }],
+    ["reports a spec gap", { status: "failed", to_phase: "intent", issue_state: "intent" }],
+    ["blocks on a question", { status: "blocked", to_phase: null, issue_state: "blocked" }],
+    ["approval handoff", { status: "passed", to_phase: "build", issue_state: "build", approvals: [approval("spec_approval")] }, "human"],
+    ["rejection handoff", { status: "failed", to_phase: "intent", issue_state: "intent", approvals: [approval("spec_approval", "rejected")] }, "human"],
+  ],
+  build: [
+    ["passes to test", { status: "passed", to_phase: "test", issue_state: "test", ...retry(1) }],
+    ["blocks when gates cannot pass", { status: "blocked", to_phase: null, issue_state: "blocked", ...retry(3) }],
+  ],
+  test: [
+    ["passes to harden", { status: "passed", to_phase: "harden", issue_state: "harden", ...retry(1) }],
+    ["fails back to build", { status: "failed", to_phase: "build", issue_state: "build", ...retry(2) }],
+    ["blocks after the third build", { status: "failed", to_phase: null, issue_state: "blocked", ...retry(3) }],
+    ["blocks on a question", { status: "blocked", to_phase: null, issue_state: "blocked", ...retry(1) }],
+  ],
+  harden: [
+    ["awaits merge approval", { status: "awaiting_approval", to_phase: null, issue_state: "awaiting-merge-approval", ...retry(1) }],
+    ["fails back to build", { status: "failed", to_phase: "build", issue_state: "build", ...retry(2) }],
+    ["blocks after the third build", { status: "failed", to_phase: null, issue_state: "blocked", ...retry(3) }],
+    ["blocks on a question", { status: "blocked", to_phase: null, issue_state: "blocked", ...retry(1) }],
+    ["approval handoff", { status: "passed", to_phase: "deploy", issue_state: "deploy", ...retry(1), approvals: [approval("merge_approval")] }, "human"],
+    ["rejection handoff", { status: "failed", to_phase: "build", issue_state: "build", ...retry(1), approvals: [approval("merge_approval", "rejected")] }, "human"],
+    ["rejection handoff at the third build", { status: "failed", to_phase: null, issue_state: "blocked", ...retry(3), approvals: [approval("merge_approval", "rejected")] }, "human"],
+  ],
+  deploy: [
+    ["blocks when not ready", { status: "blocked", to_phase: null, issue_state: "blocked", ...prRef }],
+    ["done once verified", { status: "passed", to_phase: null, issue_state: "done", ...prRef }],
+  ],
+};
+
+const handoffSection = (agent) => read(`.github/agents/${agent}.agent.md`).split(/^## Handoff$/m)[1];
+
+test("every phase has an agent file named after it", () => {
+  assert.deepEqual(Object.keys(agentHandoffs), PHASES);
+  for (const phase of PHASES) {
+    assert.match(read(`.github/agents/${phase}.agent.md`), new RegExp(`^name: ${phase}$`, "m"), phase);
+    assert.ok(handoffSection(phase), `${phase} has no ## Handoff section`);
+  }
+});
+
+test("handoffs the agents are told to record are valid and stated in the agent files", () => {
+  for (const [agent, scenarios] of Object.entries(agentHandoffs)) {
+    const section = handoffSection(agent);
+    for (const [name, fields, by = "agent"] of scenarios) {
+      const doc = handoff({ from_phase: agent, ...fields });
+      assert.equal(validate(schema, doc), true, `${agent}: ${name}`);
+      const tokens = ["status", "to_phase", "issue_state"].map((key) => `\`${key}: ${doc[key]}\``);
+      assert.ok(
+        section.split("\n").some((line) => tokens.every((token) => line.includes(token))),
+        `${agent}: ${name}: no single line states ${tokens.join(", ")}`,
+      );
+      if (by === "agent") {
+        assert.equal("approvals" in doc, false, `${agent}: ${name}: an agent must not add approvals`);
+      }
+    }
+  }
+});
+
+test("agents never grant approvals and approval handoffs are human-recorded", () => {
+  for (const agent of ["adversary", "harden"]) {
+    assert.match(handoffSection(agent), /approvals. entry yourself/, `${agent} must not add approvals`);
+    assert.match(handoffSection(agent), /the human records the approval handoff/, `${agent} approval handoff`);
+  }
+  for (const agent of ["build", "deploy"]) {
+    assert.match(read(`.github/agents/${agent}.agent.md`), /approval handoff/, `${agent} must start from the approval handoff`);
+  }
+  assert.match(read("ORCHESTRATION.md"), /\*\*Approval handoff\.\*\*/);
+  assert.match(handoffSection("adversary"), /rejects the specification/);
+  assert.match(handoffSection("harden"), /rejects the merge/);
+});
+
+const frontmatter = (agent) => read(`.github/agents/${agent}.agent.md`).split("---")[1];
+
+test("agent tool grants and invocation settings match the documented policy", () => {
+  const tools = (agent) => frontmatter(agent).match(/^tools: \[(.*)\]$/m)[1].replaceAll('"', "").split(", ");
+  const manual = (agent) => /^disable-model-invocation: true$/m.test(frontmatter(agent));
+  for (const phase of PHASES) {
+    assert.equal(manual(phase), ["build", "deploy"].includes(phase), `${phase}: disable-model-invocation`);
+  }
+  // Only Intent (specs) and Build (code) may edit files.
+  for (const phase of PHASES) {
+    assert.equal(tools(phase).includes("edit"), ["intent", "build"].includes(phase), `${phase}: edit tool`);
+  }
+  assert.match(read("ORCHESTRATION.md"), /^## Agent enforcement$/m);
+});
+
+test("commit prefixes are named once, in AGENTS.md", () => {
+  assert.match(read("AGENTS.md"), /`feat:`, `test:`, `chore:`, `fix:`, `docs:`, or `other:`/);
+  assert.doesNotMatch(read(".github/agents/build.agent.md"), /`chore:`/);
+  assert.ok(read("AGENTS.md").endsWith("\n"), "AGENTS.md needs a trailing newline");
+});

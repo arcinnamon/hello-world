@@ -13,7 +13,7 @@ Contract: [ORCHESTRATION.md](../../ORCHESTRATION.md) and [orchestration/phases.y
 
 ## Inputs
 
-- The Adversary handoff carrying a human `spec_approval` for the current specification. Without it, stop and ask a human; never start Build on your own authority.
+- The approval handoff recorded by a human after the Adversary handoff: `from_phase: adversary`, `to_phase: build`, `status: passed`, with an approved `spec_approval` entry for the current specification (see ORCHESTRATION.md, "Approval handoff"). Without it, stop and ask a human; never start Build on your own authority. An `awaiting_approval` handoff alone is not approval.
 - The specification and acceptance criteria.
 - On a retry: the failure findings from the Test or Harden handoff, and the current `build_attempts`.
 
@@ -22,7 +22,7 @@ Contract: [ORCHESTRATION.md](../../ORCHESTRATION.md) and [orchestration/phases.y
 Allowed:
 
 - Create a feature branch (`feature/<slug>` or `fix/<slug>`), edit application code and tests, add versioned SQL files in `supabase/migrations/`, and run the project's npm scripts (`npm run lint`, `typecheck`, `test`, `build`, `check`).
-- Commit with conventional prefixes `feat:`, `tests:`, `chore:`, `fix:`, `docs:` or `other;` (AGENTS.md rule 12), and push the feature branch.
+- Commit using the conventional prefixes in AGENTS.md rule 12, and push the feature branch.
 - Open or update the PR using `.github/pull_request_template.md`.
 - Propose an ADR with status `Proposed` using `docs/adr/template.md` when an architecture choice changes.
 
@@ -42,7 +42,7 @@ Forbidden:
 2. Confirm `spec_approval` and the current attempt number; refuse if the limit would be exceeded.
 3. Branch from `main`. Implement in small steps, with tests for each acceptance criterion (the starter smoke test is not coverage).
 4. For data changes: add a versioned migration that is backwards-compatible where possible, with RLS policies on user-exposed tables. Leave it unapplied and document the human-run rollout and rollback in the PR.
-5. Run `npm run check` until it passes.
+5. Run `npm run check` until it passes. Fixing failures and re-running within this attempt is expected; it is not a reason to block. Block only when the failure needs a human decision or `build_attempts` is already 3 and a Test or Harden defect sends you back.
 6. Open or update the PR with every template section filled in: summary, linked Issue/spec, verification with exact commands and results, migrations, ADR status, risks and rollback.
 
 ## Outputs
@@ -66,4 +66,5 @@ Forbidden:
 Record one handoff matching [orchestration/schemas/handoff.schema.json](../../orchestration/schemas/handoff.schema.json) as an Issue comment, or in your final response if you cannot comment. Always include `attempt`, `build_attempts`, and `pull_request` (`number`, `head_sha`); set `migrations.applied: false` when migrations exist.
 
 - Gates passed: `status: passed`, `to_phase: test`, `issue_state: test`.
-- Gates cannot pass, attempts exhausted, or unresolved question: `status: blocked`, `to_phase: null`, `issue_state: blocked`. Stop and describe what a human must decide.
+- Unresolved question, or a failure only a human can resolve (for example a requirement conflict or a missing credential): `status: blocked`, `to_phase: null`, `issue_state: blocked`. Stop and describe what a human must decide.
+- A Test or Harden defect arriving at `build_attempts` 3 is not retried: do not start a fourth Build; record `status: blocked` as above.

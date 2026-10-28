@@ -13,7 +13,7 @@ Contract: [ORCHESTRATION.md](../../ORCHESTRATION.md) and [orchestration/phases.y
 
 ## Inputs
 
-- The Harden handoff carrying a human `merge_approval` for the current PR head commit. If it is missing, rejected, or the head commit changed since approval, report not ready.
+- The approval handoff recorded by a human after the Harden handoff: `from_phase: harden`, `to_phase: deploy`, `status: passed`, with an approved `merge_approval` entry and the approved `pull_request.head_sha` (see ORCHESTRATION.md, "Approval handoff"). If it is missing, rejected, or the head commit changed since approval, report not ready. An `awaiting_approval` handoff alone is not approval.
 - Green CI `verify` check and the reviewed Vercel Preview.
 - `specs/<feature>.md` and the PR's migration and rollback notes, when the release depends on a migration.
 
