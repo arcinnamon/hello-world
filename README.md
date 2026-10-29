@@ -66,7 +66,7 @@ Open `docs/COPILOT_DEPLOY_PROMPT.md` and paste its prompt into IDE Copilot **Age
 ## Architecture & safety
 - `AGENTS.md`: agent operating rules; `.github/copilot-instructions.md`: GitHub Copilot instruction discovery.
 - `ARCHITECTURE.md`: enforced approach; `docs/adr/`: MADR-style decisions and template.
-- `ORCHESTRATION.md`: six-phase agent workflow contract (`orchestration/phases.yml`, `orchestration/schemas/handoff.schema.json`); documentation only, nothing executes it yet.
+- `ORCHESTRATION.md`: six-phase agent workflow contract (`orchestration/phases.yml`, `orchestration/schemas/handoff.schema.json`) and its GitHub-native state machine (`.github/workflows/orchestration.yml`, `scripts/orchestration/`); it does not invoke Copilot.
 - `supabase/migrations/`: version-controlled SQL. Enable RLS + proper policies for user-facing data.
 - Do not commit `.env.local`, secret/service-role keys or deploy tokens.
 - A single shared Supabase project is simple but previews and local development can modify production data. Revisit (second project or Supabase branches) before storing real user data.

@@ -1,5 +1,5 @@
 # Machine-readable phase contract. Narrative and rationale: ORCHESTRATION.md.
-# Declarative only: nothing in this repository executes it yet.
+# Declarative contract, read as text by scripts/orchestration/engine.mjs (ADR-0006).
 # Repository rules (branching, secrets, migrations, ADRs) live in AGENTS.md and
 # ARCHITECTURE.md and are referenced here, not restated.
 version: 1
