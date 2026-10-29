@@ -1,6 +1,6 @@
 # Orchestration contract
 
-Defines how an Issue moves through six phases: **Intent → Adversary → Build → Test → Harden → Deploy**. This is a contract only; nothing executes it yet. Agents and humans follow it manually until automation is proposed in a later PR. Rationale: [ADR-0005](docs/adr/0005-six-phase-orchestration-contract.md).
+Defines how an Issue moves through six phases: **Intent → Adversary → Build → Test → Harden → Deploy**. Agents and humans follow it, and the GitHub workflow described under [Automation](#automation) enforces the transition rules. Rationale: [ADR-0005](docs/adr/0005-six-phase-orchestration-contract.md).
 
 It refines the handoff in [ARCHITECTURE.md](ARCHITECTURE.md) and does not override [AGENTS.md](AGENTS.md), the accepted [ADRs](docs/adr/README.md) or [deployment behavior](docs/DEPLOYMENT_SETUP.md). Branching, PR-only delivery, secrets, migrations and ADR rules are defined there and apply in every phase.
 
@@ -11,6 +11,7 @@ It refines the handoff in [ARCHITECTURE.md](ARCHITECTURE.md) and does not overri
 | `ORCHESTRATION.md` | Overview and rationale (this file). |
 | [orchestration/phases.yml](orchestration/phases.yml) | Source of truth: phase inputs, outputs, gates, retry limits, Issue states and transitions. If this file and the YAML disagree, the YAML wins; the handoff schema must mirror the YAML transitions and retry rules. |
 | [orchestration/schemas/handoff.schema.json](orchestration/schemas/handoff.schema.json) | JSON Schema (2020-12) for the handoff record each phase attempt ends with. |
+| [.github/workflows/orchestration.yml](.github/workflows/orchestration.yml), [scripts/orchestration/](scripts/orchestration) | GitHub-native state machine (see Automation). |
 
 ## Phases
 
@@ -96,6 +97,42 @@ Minimal example (Adversary waiting for approval):
 }
 ```
 
+## Automation
+
+[ADR-0006](docs/adr/0006-github-native-orchestration-workflow.md) (Proposed) adds a GitHub-native state machine. It reads handoff comments, validates them, and moves the Issue between `state:*` labels. It does **not** invoke Copilot or any agent: handoffs are posted by hand or by mocks, and the tests use mocked agent outputs. It never merges, deploys, or runs code taken from an Issue, comment or PR.
+
+**How it works.** On each new Issue comment (not PR comments) [orchestration.yml](.github/workflows/orchestration.yml) runs two jobs from the default branch, with no dependency install:
+
+1. `evaluate` (read-only token) parses the comment and decides. `scripts/orchestration/engine.mjs` is pure logic.
+2. `apply` (`issues: write` only) takes that structured decision, re-validates it, and writes a **receipt** comment and the label. `apply.mjs` never reads comment text.
+
+A handoff comment contains exactly one fenced ` ```json ` block holding a handoff record. A human can also comment `/orchestration reset-attempts` (blocked → build) or `/orchestration restart-intent` (blocked → intent).
+
+**State of record** is the sequence of receipt comments by `github-actions[bot]` (`<!-- orchestration:receipt {...} -->`: sequence number, handled comment id, resulting state, attempt counters, approved PR head, specification hash). The `state:*` label is a projection that is rewritten to match; editing it by hand changes nothing. An Issue with no receipt is in `intent`.
+
+A handoff advances the Issue only if all of these hold, otherwise the bot posts a rejection with a fixed reason code and the state is unchanged:
+
+- It validates against the handoff schema, names this repository and Issue, and contains no obvious secret.
+- It leaves the state the ledger is in and follows a transition in `phases.yml` (replays of old handoffs fail).
+- For `passed` and `awaiting_approval`: every completion gate of its phase is listed exactly once with a `passed` result and evidence (the human gate `pending` while awaiting), and no high or critical finding is open.
+- `attempt` and `build_attempts` match the ledger's own count, so an agent cannot under-report. A fourth Build never starts; the third failure ends in `state:blocked`.
+- The pull request head SHA matches GitHub, Test, Harden and approvals refer to the head Build produced, and a draft PR cannot reach merge approval.
+
+**Authority.** The commenter's repository role is read from the API, never from the comment. Agent handoffs need `write`. Approvals, rejections and Deploy handoffs need `maintain` or `admin`, a `User` account (never a bot), and the `approver` in the record must equal the comment author. `spec_approval` is void if the Issue body changed after the Adversary review. Deploy completes only if GitHub reports the PR merged by a human `User`. Bot-authored comments are ignored. Receipts are trusted only when authored by `github-actions[bot]`.
+
+**Duplicates.** Re-running a workflow or reposting a comment never repeats a transition: each comment id is handled once, replays fail the state check, `apply` refuses a decision whose ledger sequence is stale, and runs for one Issue are serialized.
+
+**Manual configuration** (nothing here is done by the workflow):
+
+1. Merge the PR. `issue_comment` workflows run only from the default branch, so nothing happens before that.
+2. Repository roles decide who can act: approvers need Admin (Maintain on organization repositories); agent or mock accounts need Write. Keep Admin small; Triage and Read cannot hand off.
+3. Settings → Actions → General: keep default workflow permissions read-only and leave "Allow GitHub Actions to create and approve pull requests" off. The workflow requests its own permissions and uses no secrets; do not add any.
+4. Protect `main` (ruleset or branch protection): require a pull request, require the `verify` check, require approval, restrict who can merge and do not allow bypass, and give no agent identity merge or admin rights. This is what enforces the human-only production merge; the workflow only records it.
+5. Optional: create the ten `state:*` labels (`state:intent`, `state:adversary`, `state:awaiting-spec-approval`, `state:build`, `state:test`, `state:harden`, `state:awaiting-merge-approval`, `state:deploy`, `state:blocked`, `state:done`) with `gh label create`; otherwise GitHub creates them uncolored on first use.
+6. A human sets ADR-0006 to Accepted. Optionally pin the actions in the workflow to commit SHAs.
+
+**Limits.** Users with Write can delete bot comments, which would roll a ledger back; GitHub offers no control for this, so review the audit log. Command gates (`npm run check`, CI `verify`) are attested in the handoff and not re-run or re-checked against CI. Changing the specification after approval is only detected when approval is given, not during Build. GitHub keeps one pending run per concurrency group, so of several comments posted in a burst only the newest queued one runs; repost the others. `phases.yml` has no `build → build` or `awaiting-merge-approval → blocked` edge, but the retry rules and schema imply them, so the engine allows both for `failed` handoffs.
+
 ## Validate
 
-`npm test` includes `tests/orchestration.test.mjs`, which checks that the files exist and stay consistent (phase order, retry limits, approval gates). It adds no dependencies and does not execute the orchestration.
+`npm test` includes `tests/orchestration.test.mjs`, which checks that the files exist and stay consistent (phase order, retry limits, approval gates), and `tests/orchestration-engine.test.mjs`, which drives the state machine with mocked handoffs and an in-memory Issue (invalid handoffs, unauthorized approvals, duplicate events, retry exhaustion, workflow permissions). It adds no dependencies and makes no network calls.

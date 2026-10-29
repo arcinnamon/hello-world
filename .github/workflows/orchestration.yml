@@ -1,0 +1,78 @@
+name: Orchestration
+
+# Advances the Issue state machine from handoff comments (ORCHESTRATION.md, ADR-0006).
+# Runs on issue_comment, so GitHub always uses this file and the scripts from the default branch;
+# no pull request code is checked out, installed or executed, and no AI output is run.
+# It never calls Copilot and never merges or deploys.
+
+on:
+  issue_comment:
+    types: [created]
+
+# Deny everything by default; each job below requests only what it needs.
+permissions: {}
+
+# One run per Issue at a time, in arrival order where possible. GitHub keeps at most one pending
+# run per group, so a burst of comments can drop the middle ones: repost them. Correctness does
+# not depend on this; the ledger sequence check in the apply step is the real duplicate guard.
+concurrency:
+  group: orchestration-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    # Cheap pre-filter only. Authorization is decided in scripts/orchestration/engine.mjs from the
+    # commenter's verified repository role. Pull request comments are not Issue state transitions.
+    if: >-
+      github.event.issue.pull_request == null &&
+      github.event.comment.user.type == 'User' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+      (contains(github.event.comment.body, '"schema_version"') || startsWith(github.event.comment.body, '/orchestration '))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Read-only: this job parses untrusted comment text.
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    outputs:
+      decision: ${{ steps.evaluate.outputs.decision }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            orchestration
+            scripts/orchestration
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - id: evaluate
+        run: node scripts/orchestration/run.mjs evaluate
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+  apply:
+    needs: evaluate
+    if: needs.evaluate.outputs.decision != '' && needs.evaluate.outputs.decision != '{"action":"ignore"}'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # The only write permission: comments and labels on Issues. No contents, pull-requests or actions write.
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            orchestration
+            scripts/orchestration
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node scripts/orchestration/run.mjs apply
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          # Structured decision only (enums, integers, hashes); passed via env, never interpolated into a script.
+          DECISION: ${{ needs.evaluate.outputs.decision }}
