@@ -63,6 +63,18 @@ Agent-ready **Next.js App Router + TypeScript + Supabase + Vercel** template. It
 ## 6. Copilot setup
 Open `docs/COPILOT_DEPLOY_PROMPT.md` and paste its prompt into IDE Copilot **Agent Mode**. It guides validation, dependency reconciliation and assisted setup without assuming Copilot has access to external dashboard accounts.
 
+## Necessary changes when database is added
+Notes carried over from a sibling project that automated migrations against separate staging and production Supabase projects. None of this applies yet; adopting it would supersede [ADR-0003](docs/adr/0003-single-supabase-project.md), so propose a new ADR first.
+
+- **Supabase CLI in CI:** recent CLI releases target a local Docker stack by default and prompt before applying migrations. In a workflow, use `supabase db push --remote --yes`. The prompt was never a real gate; human approvals and the production required reviewer remain the gates. Pin `supabase/setup-cli` to an exact version instead of `latest`, and confirm the push flags against that version.
+- **Manual pushes today:** the same default may affect the manual `supabase db push` in step 2 and [specs/greetings.md](specs/greetings.md). Check the current CLI docs for the flag that targets the linked project.
+- **Projects:** create staging and production in the same region (East US, next to Vercel's `iad1`). Save each database password, leave the Data API and automatic table exposure on, and note each project ref, URL and publishable key.
+- **GitHub:** repository secret `SUPABASE_ACCESS_TOKEN`. `SUPABASE_PROJECT_REF` and `SUPABASE_DB_PASSWORD` as environment **secrets** (not variables) in the `staging` and `production` environments.
+- **Vercel:** Preview uses the staging URL/publishable key; Production uses the production values. These can be plain variables rather than Sensitive (the publishable key is meant for browsers and RLS protects the data), so Vercel's warning can be ignored.
+- **Verify:** a manual run of the production migration workflow with no issue should log "Remote database is up to date". Until Supabase is configured, migration steps should skip with a note.
+- **Auth URLs (later):** add a wildcard redirect URL for staging previews and set the Site URL for production.
+- **Staging drift:** reset with `npx supabase db reset --linked` while linked to staging. Never run it against production.
+
 ## Architecture & safety
 - `AGENTS.md`: agent operating rules; `.github/copilot-instructions.md`: GitHub Copilot instruction discovery.
 - `ARCHITECTURE.md`: enforced approach; `docs/adr/`: MADR-style decisions and template.
